@@ -36,8 +36,37 @@ function M.is_executable(absolute_path)
   end
 end
 
+function M.ReadTitle(f)
+    for l in f:lines() do -- lines iterator, "l" returns the line
+      local s, e = string.find(l, "# .*")
+      if s then
+        local title = string.sub(l, s+2, e)
+        return title
+      end
+    end
+    return nil
+end
+
 function M.file(parent, absolute_path, name)
   local ext = string.match(name, ".?[^.]+%.(.*)") or ""
+  local dir = os.getenv("ZK_NOTEBOOK_DIR")
+  if dir then
+    local is_zkdir = string.find(absolute_path, dir) and true
+    if is_zkdir and ext == "md" then
+      local f = io.open(absolute_path)
+      local title = M.ReadTitle(f)
+      f:close()
+      return {
+        type = "file",
+        absolute_path = absolute_path,
+        executable = M.is_executable(absolute_path),
+        extension = ext,
+        fs_stat = vim.loop.fs_stat(absolute_path),
+        name = title,
+        parent = parent,
+      }
+    end
+  end
 
   return {
     type = "file",
