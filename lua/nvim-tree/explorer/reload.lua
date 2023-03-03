@@ -41,7 +41,7 @@ function M.reload(node, git_status, unloaded_bufnr)
     return
   end
 
-  local ps = log.profile_start("reload %s", node.absolute_path)
+  local profile = log.profile_start("reload %s", node.absolute_path)
 
   local filter_status = filters.prepare(git_status, unloaded_bufnr)
 
@@ -130,13 +130,13 @@ function M.reload(node, git_status, unloaded_bufnr)
     node.group_next = child_folder_only
     local ns = M.reload(child_folder_only, git_status)
     node.nodes = ns or {}
-    log.profile_end(ps, "reload %s", node.absolute_path)
+    log.profile_end(profile)
     return ns
   end
 
   sorters.merge_sort(node.nodes, sorters.node_comparator)
   live_filter.apply_filter(node)
-  log.profile_end(ps, "reload %s", node.absolute_path)
+  log.profile_end(profile)
   return node.nodes
 end
 
@@ -164,8 +164,10 @@ function M.refresh_nodes_for_path(path)
     return
   end
 
-  local pn = string.format("refresh_nodes_for_path %s", path)
-  local ps = log.profile_start(pn)
+  local profile = log.profile_start("refresh_nodes_for_path %s", path)
+
+  -- avoids cycles
+  local absolute_paths_refreshed = {}
 
   NodeIterator.builder({ explorer })
     :hidden()
@@ -178,15 +180,18 @@ function M.refresh_nodes_for_path(path)
       end
     end)
     :applier(function(node)
-      local abs_contains = node.absolute_path and path:match("^" .. node.absolute_path)
-      local link_contains = node.link_to and path:match("^" .. node.link_to)
+      local abs_contains = node.absolute_path and path:find(node.absolute_path, 1, true) == 1
+      local link_contains = node.link_to and path:find(node.link_to, 1, true) == 1
       if abs_contains or link_contains then
-        M.refresh_node(node)
+        if not absolute_paths_refreshed[node.absolute_path] then
+          absolute_paths_refreshed[node.absolute_path] = true
+          M.refresh_node(node)
+        end
       end
     end)
     :iterate()
 
-  log.profile_end(ps, pn)
+  log.profile_end(profile)
 end
 
 function M.setup(opts)
